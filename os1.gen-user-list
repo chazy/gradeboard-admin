@@ -1,0 +1,23 @@
+#!/bin/bash
+#
+# gen-user-list.sh
+# Jeremy C. Andrus
+# Fall 2010
+#
+# Generate a list of users from a flat-file named 'class_list'
+# (or the first argument to the script).
+#
+# Optionally separate each user with 'SEPCHAR' (the second script argument)
+#
+
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+LISTFILE=${1:-${_FP}/class_list}
+SEPCHAR=${2:-}
+
+#LIST=`cat $LISTFILE | awk -F '(' '{print $2}' | awk -F '@' '{print $1}' | sort`
+LIST=`cat $LISTFILE | awk -F '(' '{print $2}' | awk -F '@' '{print $1}'`
+if [ ! -z "$SEPCHAR" ]; then
+	LIST="${LIST//[[:space:]]/$SEPCHAR}$SEPCHAR"
+fi
+echo $LIST
+

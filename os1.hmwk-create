@@ -1,0 +1,107 @@
+#!/bin/bash
+#
+# Jeremy C. Andrus
+# Fall 2010
+#
+# Create a homework repository with a particular due date
+#
+# Optionally add one or more kernel repositories to the
+# homework where /kernel/repo/path1 will be replicated in
+# dirname1 in the homework repo.
+#
+
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 2 || $# == 5 ]] || os1error "Usage: $0 hmwk_num due_date [is_group {kernel/repo/path1,kernel/repo/path2,...} {dirname1,dirname2,...}]"
+
+HMWKNUM=$1
+DUE_DATE=$2
+IS_GROUP=${3:-0}
+KERNEL_GIT=${4:- }
+KDIR=${5:- }
+
+HMWK="hmwk$HMWKNUM"
+GRP_DESCRIP=
+if [[ $IS_GROUP > 0 ]]; then
+	HMWK=${HMWK}-grp
+	GRP_DESCRIP="Group Work"
+fi
+
+echo "Creating git repo: hmwk/$HMWK"
+
+TMP_CONF=$GITOSIS_CONF.tmp
+
+RE_ta_grp="^.*\[[ ]*group ${OS_TAGRPNAME}[ ]*\]"
+RE_writable="^[ ]*writable ="
+RE_emptyline="^[ ]*$"
+
+TA_GROUP=0
+
+cat $GITOSIS_CONF | (
+while read line; do
+	if [[ $TA_GROUP == 1 ]]; then
+		if [[ $line =~ $RE_writable ]]; then
+			# add the new repository to the writable list
+			line="$line hmwk/$HMWK"
+		elif [[ $line =~ $RE_emptyline ]]; then
+			# Start of group after the 'ta' group - add our repo section
+			echo " " >> $TMP_CONF
+			echo "[repo hmwk/$HMWK]" >> $TMP_CONF
+			echo "owner = $OS_PROF" >> $TMP_CONF
+			echo "description = Homework assignment $HMWKNUM $GRP_DESCRIP" >> $TMP_CONF
+			echo "daemon = no" >> $TMP_CONF
+			echo "gitweb = no" >> $TMP_CONF
+			TA_GROUP=0
+			echo "  created hmwk/$HMWK repo entry"
+		fi
+	elif [[ $line =~ $RE_ta_grp ]]; then
+		TA_GROUP=1
+		echo "  found TA group ($OS_TAGROUP)"
+	fi
+	echo $line >> $TMP_CONF
+done
+)
+
+# replace the config
+mv -f $TMP_CONF $GITOSIS_CONF
+$GIT commit -a -m "Authorized TAs to work on hmwk/$HMWK.git" || os1error "Unable to commit gitosis conf change"
+$GIT push || os1error "Unable to push new gitosis config"
+
+# create the new repo
+REPO=hmwk/$HMWK
+mkdir -p "$REPO"
+pushd "$REPO"
+$GIT init
+$GIT remote add origin $GITOSIS_USER@$OS_HOST:$REPO.git
+
+# Add some sort of homework assignment skeleton here
+touch .gitignore
+#wget ${OS_HMWKURL}/hmwk${HMWKNUM}.html -O assignment.html
+echo "<html><head><title>Homework $HMWKNUM</title></head><body><a href=\"${OS_HMWKURL}/hmwk${HMWKNUM}.html\">assignment</a></body></html>" > assignment.html
+$GIT add .gitignore
+$GIT add assignment.html
+if [[ $IS_GROUP < 1 ]]; then
+	touch written
+	$GIT add written
+fi
+
+$GIT commit -a -m "Initial homework ${HMWKNUM} template" || os1error "Unable to perform initial homework template commit"
+$GIT push origin master:refs/heads/master || os1error "Unable to push the new hmwk repo to the server"
+
+# set the due date 
+svr hmwk-setduedate $REPO "\"$DUE_DATE\""
+
+if [[ $IS_GROUP > 0 ]]; then
+	KERNEL=( `echo ${KERNEL_GIT//,/ }` )
+	REPO_DIR=( `echo ${KDIR//,/ }` )
+	if [[ ${#KERNEL[@]} != ${#REPO_DIR[@]} ]]; then
+		echo "Uh-oh - the number of kernel dirs doesn't match the number of repo-dirs passed in!"
+	fi
+	for i in $(seq 0 $((${#KERNEL[@]} - 1))); do
+		svr repo-addkernel $REPO ${KERNEL[$i]} ${REPO_DIR[$i]}
+	done
+fi
+
+# $REPO
+popd
+rm -rf "$REPO"
+

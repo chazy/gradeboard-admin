@@ -1,0 +1,117 @@
+#!/bin/bash
+#
+# Jeremy C. Andrus
+# Fall 2010
+#
+# Distribute a homework to all students in the class.
+# This clones the initial homework setup repo on the server
+# into a private repo for each student, and a solution repo
+# for the instructor.
+#
+# It also sets up all the gitosis config entries
+#
+
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 || $# == 2 || $# == 3 ]] || os1error "Usage: $0 hmwknum [0|1] [0|1] # (where arg 2 and three are JustClone and JustGitConf)"
+
+NUM=$1
+JUSTCLONE=${2:-0}
+JUSTGITCONF=${3:-0}
+
+if [[ $JUSTCLONE == 1 && $JUSTGITCONF == 1 ]]; then
+	echo "Cannot specify both JustClone and JustGitConfig"
+	exit 1
+fi
+
+HMWK=hmwk$NUM
+
+if [[ $JUSTCLONE == 0 ]]; then
+
+# add the new HW repo to all the user groups
+TMP_CONF=$GITOSIS_CONF.tmp
+echo -n > $TMP_CONF
+
+RE_ta_grp="^.*\[[ ]*group ${OS_TAGRPNAME}[ ]*\]"
+RE_grp_start="^.*\[[ ]*group[ ][ ]*([a-z][a-z]*[0-9][0-9]*)[ ]*\]"
+RE_team_start="^.*\[[ ]*group[ ][ ]*(team[0-9][0-9]*)[ ]*\]"
+RE_members="^[ \t]members ="
+RE_writable="^[ \t]*writable ="
+RE_emptyline="^[ ]*$"
+
+USRGROUP=0
+SHOULD_TA_MOD=0
+TA_MOD_DONE=0
+MEMBERS_LINE=0
+cat $GITOSIS_CONF | (
+while  read line; do
+	if [[ $MEMBERS_LINE == 1 && $line =~ $RE_emptyline ]]; then
+		USRGROUP=0
+		SHOULD_TA_MOD=0
+		MEMBERS_LINE=0
+	elif [[ $USRGROUP == 1 ]]; then
+		if [[ $line =~ $RE_members ]]; then
+			MEMBERS_LINE=1
+		elif [[ $line =~ $RE_writable ]]; then
+			RE_entry=".* $USR/$HMWK.*"
+			if [[ ! $line =~ $RE_entry ]]; then
+				echo "Adding $USR/$HMWK to $USR..."
+				line="$line $USR/$HMWK"
+			fi
+			USRGROUP=0
+		elif [[ $line =~ $RE_emptyline ]]; then
+			# there was no 'writable = ' line in this group: add a new one
+			echo "Setting $USR/$HMWK for $USR..."
+			echo "writable = $USR/$HMWK" >> $TMP_CONF
+			USRGROUP=0
+		fi
+	elif [[ $TA_MOD_DONE == 0 && $SHOULD_TA_MOD == 1 ]]; then
+		if [[ $line =~ $RE_members ]]; then
+			MEMBERS_LINE=1
+		elif [[ $line =~ $RE_writable ]]; then
+			RE_entry=".* hmwk/$HMWK-soln.*"
+			if [[ ! $line =~ $RE_entry ]]; then
+				echo "Adding TA solution repo (hmwk/$HMWK-soln)"
+				line="$line hmwk/$HMWK-soln"
+			fi
+			TA_MOD_DONE==1
+		elif [[ $line =~ $RE_emptyline ]]; then
+			echo "Setting TA solution repo (hmwk/$HMWK-soln)"
+			echo "writable = hmwk/$HMWK-soln" >> $TMP_CONF
+			TA_MOD_DONE=1
+		fi
+	elif [[ $TA_MOD_DONE == 0 && "$line" =~ $RE_ta_grp ]]; then
+		SHOULD_TA_MOD=1
+	elif [[ "$line" =~ $RE_team_start ]]; then
+		:
+	elif [[ "$line" =~ $RE_grp_start ]]; then
+		USRGROUP=1
+		USR=${BASH_REMATCH[1]}
+	fi
+	echo $line >> $TMP_CONF
+done
+)
+
+mv -f $TMP_CONF $GITOSIS_CONF
+$GIT add $GITOSIS_CONF
+$GIT commit -m "Staging $HMWK for distribution"
+$GIT push || os1error "Unable to stage the distribution (initial gitosis conf failed)"
+
+# if [[ $JUSTCLONE == 0 ]]
+fi
+
+
+
+if [[ $JUSTGITCONF == 0 ]]; then
+
+SRC=hmwk/$HMWK
+
+# clone the homework solution repository
+svr clone $SRC hmwk/$HMWK-soln skip_existing
+
+# clone the homework repository for all students
+for user in `${_FP}/os1.gen-user-list`; do
+	svr clone $SRC $user/$HMWK skip_existing
+done
+
+# if [[ $JUSTGITCONF == 0 ]]
+fi

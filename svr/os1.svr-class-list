@@ -1,0 +1,7 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 0 ]] || os1error "Usage: $0 (no arguments)"
+
+ls -1 $OS_GIT_REPOPATH | grep '^[a-z][a-z]*[0-9][0-9]*$'
+
+exit 0

@@ -1,0 +1,54 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 3 || $# == 4 ]] || os1error "Usage: $0 team password emails [team name]"
+
+TEAM=$1
+PASSWORD=$2
+EMAILS=$3
+NAME=${4:-$TEAM}
+
+MEMBERS=""
+while read line; do
+	MEMBERS="$MEMBERS\n$line"
+done
+
+echo "Sending $TEAM reviewboard login"
+
+export BOUNDARY="[W4118.OS1]"
+(
+echo "From: W4118 Team <w4118@lists.cs.columbia.edu>"
+echo "Return-Path: <cdall@cs.columbia.edu>"
+echo "Reply-To: <w4118@lists.cs.columbia.edu>"
+echo "To: $EMAILS"
+echo "Bcc: w4118@lists.cs.columbia.edu"
+echo "Subject: [W4118] Team ReviewBoard login"
+echo "MIME-Version: 1.0"
+echo "Content-Type: multipart/mixed; boundary=\"$BOUNDARY\""
+echo 
+echo "--$BOUNDARY"
+echo "Content-Type: text/plain; charset=\"us-ascii\""
+echo "Content-Transfer-Encoding: 7bit"
+echo
+echo "Dear $NAME,"
+echo
+echo "Your team consists of:"
+echo -e "$MEMBERS"
+echo 
+echo "Your homeworks will be graded and you will receive feedback through"
+echo "an online web interface called ReviewBoard."
+echo
+echo "Team submissions work just like individual submissions to ReviewBoard"
+echo "but you are using a separate login, which is shared among all team"
+echo "members, to see grading and feedback from instructors."
+echo
+echo "The website is available at:"
+echo "    http://reviews.os1.cs.columbia.edu"
+echo "    Username: $TEAM"
+echo "    Password: $PASSWORD"
+echo 
+echo "Please feel free to email us with questions or problems."
+echo
+echo "    ~The W4118 Team"
+echo 
+echo "--$BOUNDARY--"
+) | sendmail -i -t -v || os1error "cannot send email"

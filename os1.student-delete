@@ -1,0 +1,36 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 || $# == 2 ]] || os1error "Usage $0 username [0|1] (1 == remove git repos)"
+
+STUDENT=$1
+RM_REPOS=${2:-0}
+
+# remove user on server
+svr deluser $STUDENT $RM_REPOS
+
+# remove user from gitosis
+$GIT rm $GITOSIS_KEYDIR/$STUDENT.pub
+
+TMP_CONF=$GITOSIS_CONF.tmp
+SHOULD_KEEP=0
+
+RE_usr_grp="^.*\[[ ]*group[ ][ ]*${STUDENT}"
+RE_new_grp="^.*\[[ ]*group[ ][ ]*.*\]"
+cat $GITOSIS_CONF | (
+	while read line; do
+		if [[ "$line" =~ $RE_usr_grp ]]; then
+			SHOULD_KEEP=0
+		elif [[ $SHOULD_KEEP == 0 && "$line" =~ $RE_new_grp ]]; then
+			SHOULD_KEEP=1
+		fi
+		[[ $SHOULD_KEEP == 1 ]] && echo $line >> $TMP_CONF
+	done
+)
+
+mv -f $TMP_CONF $GITOSIS_CONF
+
+pushd $_FP/$GITOSIS_ADMIN > /dev/null
+$GIT commit -a -m "Removed user: $STUDENT" || os1error "Git commit error"
+$GIT push || os1error "Git push error"
+popd > /dev/null
+

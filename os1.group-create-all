@@ -1,0 +1,23 @@
+#!/bin/bash
+#
+# os1.group-create-all
+# Christoffer Dall
+# Fall 2011
+#
+# Call os1.group-create for all teams in os1.gen-team-list
+#
+
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 0 || $# == 1 ]] || os1error "Usage $0"
+
+for team in `./os1.gen-team-list`
+do
+	grep -s "\[group $team\]" "$GITOSIS_CONF" > /dev/null
+	if [[ $? == 1 ]]; then
+		echo "creating $team"
+		MEMBERS=`grep "^$team " "$TEAM_LIST" | cut -f 2 -d ' ' -`
+		./os1.group-create $team $MEMBERS
+	else
+		echo "$team already created, skipping"
+	fi
+done

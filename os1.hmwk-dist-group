@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# Christoffer Dall
+# Fall 2011
+#
+# Clone the group homework assignment to each team
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 ]] || os1error "Usage: $0 hmwknum"
+
+NUM=$1
+HMWK=hmwk$NUM
+
+SRC=hmwk/$HMWK-grp
+
+# clone the homework repository for all teams
+for team in `./os1.gen-team-list`
+do
+	MEMBERS=`grep "^$team " "$TEAM_LIST" | cut -f 2 -d ' ' -`
+	./os1.repo-clone $SRC "$team/$HMWK" "$team" 0
+done

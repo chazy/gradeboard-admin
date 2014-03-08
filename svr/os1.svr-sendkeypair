@@ -1,0 +1,71 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 || $# == 2 || $# == 3 ]] || os1error "Usage: $0 user [email]"
+
+USER=$1
+EMAIL=$2
+NAME=${3:-Student}
+
+[[ $EMAIL == "" ]] && EMAIL="$USER@columbia.edu"
+
+echo "Sending $USER keypair to $EMAIL"
+
+#PRIV_KEY="/home/$USER/.ssh/id_dsa"
+#PUB_KEY="/home/$USER/.ssh/id_dsa.pub"
+PRIV_KEY="$OS_USER_KEY_DIR/$USER"
+PUB_KEY="$OS_USER_KEY_DIR/$USER.pub"
+
+[[ -f $PRIV_KEY ]] || os1error "cannot find priv key"
+[[ -f $PUB_KEY ]] || os1error "cannot find public key"
+
+add_attachment() {
+	echo "--$BOUNDARY"
+	echo "Content-Type: text/plain; name=\"$2\""
+	echo "Content-Transfer-Encoding: base64"
+	echo "Content-Disposition: attachment; filename=\"$2\""
+	echo
+	mimencode $1 || error "mimencode failed"
+}
+
+export BOUNDARY="[W4118.OS1]"
+(
+echo "From: W4118 Team <w4118@lists.cs.columbia.edu>"
+echo "Return-Path: <cdall@cs.columbia.edu>"
+echo "Reply-To: <w4118@lists.cs.columbia.edu>"
+echo "To: $EMAIL"
+echo "Bcc: w4118@lists.cs.columbia.edu"
+echo "Subject: [W4118] SSH key pair"
+echo "MIME-Version: 1.0"
+echo "Content-Type: multipart/mixed; boundary=\"$BOUNDARY\""
+echo 
+echo "--$BOUNDARY"
+echo "Content-Type: text/plain; charset=\"us-ascii\""
+echo "Content-Transfer-Encoding: 7bit"
+echo
+echo "Dear $NAME,"
+echo 
+echo "Attached you will find attached your SSH key pair to access"
+echo "the git repository for the W4118 class."
+echo 
+echo "You will be given up to two repositories per homework assignment."
+echo "One repository will hold all of your individual work, and will"
+echo "only be accessible by you. This repository can be cloned using"
+echo "the following template:"
+echo "    git clone gitosis@os1.cs.columbia.edu:$USER/hmwk[N].git"
+echo "where [N] should be replaced by the homework number (e.g. 1)."
+echo
+echo "After you are assigned to a team, the team repositories can"
+echo "be cloned using this template:"
+echo "    git clone gitosis@os1.cs.columbia.edu:[TEAM]/hmwk[N].git"
+echo "where [TEAM] will be replaced by your team name (to be assigned"
+echo "at a later date), and [N] should be replaced by the homework"
+echo "number. All of your teammates will have access to this repository."
+echo 
+echo "Please feel free to email us with questions or problems."
+echo
+echo "    ~The W4118 Team"
+echo 
+add_attachment $PUB_KEY id_dsa.pub
+add_attachment $PRIV_KEY id_dsa
+echo "--$BOUNDARY--"
+) | sendmail -i -t -v || os1error "cannot send email"

@@ -1,0 +1,27 @@
+#!/bin/bash
+#
+# rb-user-login-all
+# Christoffer Dall
+# Fall 2011
+#
+# Parse the class list and reviewboard.auth file and send the individual
+# user login credentials to each student.
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 3 ]] || os1error "Usage: $0 hmwk_num group due_date # (where group = 0|1)"
+
+NUM=$1
+GRP=$2
+DDATE="$3"
+
+if [[ $GRP == 0 ]]; then
+	HMWK="hmwk$NUM"
+	for UNI in `./os1.gen-user-list`
+	do
+		REPO="$UNI/$HMWK"
+		svr hmwk-setduedate "$REPO" "'$DDATE'"
+	done
+
+else
+	echo "group..."
+fi

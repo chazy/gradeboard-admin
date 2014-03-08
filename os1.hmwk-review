@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+# Christoffer Dall
+# Fall 2011
+#
+# Create a review for each team based on the diff from their master
+# branch to hmwk/hmwk[N].git's master branch.
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ "$1" != "--help" && ($# == 1 || $# == 2) ]] || os1error "Usage: $0 hmwknum [force]"
+
+NUM=$1
+HMWK=hmwk$NUM
+FORCE=${2:-0}
+
+# review each users's homework
+for UNI in `./os1.gen-user-list`
+do
+	./os1.repo-review $NUM 0 $UNI $FORCE
+done

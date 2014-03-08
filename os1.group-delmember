@@ -1,0 +1,51 @@
+#!/bin/bash
+# group-delmember
+# Jeremy C. Andrus
+# 2010-09-20
+# 
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 2 ]] || os1error "Usage: $0 group_name user"
+
+GRP=$1
+USR=$2
+
+echo "Looking for $USR in $GRP..."
+TMP_CONF=$GITOSIS_CONF.tmp
+
+RE_grp_start="^.*\[[ ]*group[ ][ ]*(${GRP})[ ]*\]"
+RE_members="^[ ]*members =[ ]*([a-z].*)$"
+RE_emptyline="^[ ]*$"
+
+INGROUP=0
+
+if [[ $TA != 1 ]]; then
+	TA_MOD_DONE=1
+fi
+
+GNAME=
+cat $GITOSIS_CONF | (
+while  read line; do
+	if [[ $INGROUP == 1 ]]; then
+		if [[ $line =~ $RE_members ]]; then
+			GRP_MEMBERS=${BASH_REMATCH[1]}
+			os1exists $USR "$GRP_MEMBERS"
+			if [[ $? == 1 ]]; then
+				line=${line/$USR}
+				line=${line%% } # remove trailing spaces
+				echo "  revoked $USR access to $GNAME (line=$line)"
+			fi
+			INGROUP=0
+		fi
+	elif [[ "$line" =~ $RE_grp_start ]]; then
+		INGROUP=1
+		GNAME=${BASH_REMATCH[1]}
+	fi
+	echo $line >> $TMP_CONF
+done
+)
+
+mv -f $TMP_CONF $GITOSIS_CONF
+$GIT add $GITOSIS_CONF
+$GIT commit -m "Removed $USR from $GRP"
+$GIT push || os1error "gitosis conf failed: $USR may not have been removed from $GRP"
+

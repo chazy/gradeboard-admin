@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+# rb-auth
+# Christoffer Dall
+# Fall 2011
+#
+# Parse the class list format and add each user into the passwd file
+# which is not already there
+#
+
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 0 ]] || os1error "Usage '$0'"
+
+# Find the openssl tool
+if [ ! -x "$(type -p openssl)" ]; then
+	echo "Cannot find openssl tool, exiting" >2
+	exit 1
+fi
+
+
+# Read the class list and output missing users to the auth file
+cat "$CLASS_LIST" | (
+while read line; do
+	UNI=`echo $line | sed 's/.* (\(.*\)@columbia.edu)/\1/'`
+	NAME=`echo $line | sed 's/\(.*\) (.*@columbia.edu)/\1/'`
+	EMAIL="$UNI@columbia.edu"
+
+	egrep -sq "^$UNI," "$RB_AUTH_FILE"
+	if [[ $? != 0 ]]; then
+		PASSWD=`openssl rand -base64 6 | sed 's/,/_/g'`
+		echo "Adding $UNI's password"
+		echo "$UNI,$NAME,$PASSWD,$EMAIL,Students" >> "$RB_AUTH_FILE"
+	fi
+done
+)
+
+
+# Read the team list and output missing users to the auth file
+cat "$TEAM_LIST" | (
+while read line; do
+	TEAM=`echo $line | sed 's/^\([^ ]*\) .*/\1/'`
+#NAME=`echo $TEAM | sed 's/^t\([^ ]*\) /T\1/'`
+	NAME=`echo ${TEAM:0:1} |  tr a-z A-Z`${TEAM:1}
+	UNI=`echo $line | cut -f 2 -d ' ' - | cut -f 1 -d ',' -`
+	EMAIL="$UNI@columbia.edu"
+
+	egrep -sq "^$TEAM," "$RB_AUTH_FILE"
+	if [[ $? != 0 ]]; then
+		PASSWD=`openssl rand -base64 6 | sed 's/,/_/g'`
+		echo "Adding $TEAM's password"
+		echo "$TEAM,$NAME,$PASSWD,$EMAIL,Students" >> "$RB_AUTH_FILE"
+	fi
+done
+)

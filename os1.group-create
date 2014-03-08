@@ -1,0 +1,23 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 || $# == 2 ]] || os1error "Usage $0 group [user1,user2,user3,...]"
+
+GNAME=$1
+MBRS=${2:- }
+
+# scrub the list a bit: space-separated w/no trailing spaces
+MEMBERS=${MBRS//,/ }
+MEMBERS=${MEMBERS%% }
+MEMBERS=${MEMBERS//    / }
+MEMBERS=${MEMBERS//   / }
+MEMBERS=${MEMBERS//  / }
+
+# XXX - assume that the group doesn't exist yet!!
+
+echo "[group ${GNAME}]" >> $GITOSIS_CONF
+echo "members = $MEMBERS ${OS_TAGROUP}" >> $GITOSIS_CONF
+echo " " >> $GITOSIS_CONF
+
+$GIT commit $GITOSIS_CONF -m "Added new group: $GNAME" || os1error "Git commit error"
+$GIT push || os1error "Git push error"
+

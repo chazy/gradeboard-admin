@@ -1,0 +1,72 @@
+#!/bin/bash
+# repo-addperm
+# Jeremy C. Andrus
+# 2010-09-08
+# 
+# This script adds read or write permission on a repository 
+# to a specified user
+# 
+# Usage: repo-addperm repo/path username {read|write}
+# 
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 3 ]] || os1error "Usage: $0 repo/path username[,usr2,usr3,...] {read|write}"
+
+REPO=$1
+USRLIST=`echo "$2" | sed -e 's/,/ /g'`
+PERM=$3
+
+echo "Adding permissions for: '$USRLIST'..."
+TMP_CONF=$GITOSIS_CONF.tmp
+
+RE_grp_start="^.*\[[ ]*group[ ][ ]*([a-z][a-z]*[0-9][0-9]*)[ ]*\]"
+RE_writable="^[ ]*writable ="
+RE_readonly="^[ ]*readonly ="
+RE_emptyline="^[ ]*$"
+
+RE_perm=
+perm_line=
+if [ "$PERM" = "write" ]; then
+	RE_perm=$RE_writable
+	perm_line="writable ="
+elif [ "$PERM" = "read" ]; then
+	RE_perm=$RE_readonly
+	perm_line="readonly ="
+else
+	os1error "Invalid permission: $PERM"
+fi
+
+USRGROUP=0
+cat $GITOSIS_CONF | (
+while  read line; do
+	if [[ $USRGROUP == 1 ]]; then
+		if [[ $line =~ $RE_perm ]]; then
+			os1find $REPO $line
+			if [[ $? == 1 ]]; then
+				echo "  $user already has write access to $REPO."
+			else
+				echo "  Adding $PERM permission to $REPO for $user..."
+				line="$line $REPO"
+			fi
+			USRGROUP=0
+		elif [[ $line =~ $RE_emptyline ]]; then
+			# there was no read/write line in this group: add a new one
+			echo "  Adding $PERM permission to $REPO for $user..."
+			echo "$perm_line $REPO" >> $TMP_CONF
+			USRGROUP=0
+		fi
+	elif [[ "$line" =~ $RE_grp_start ]]; then
+		user=${BASH_REMATCH[1]}
+		os1exists "$user" "$USRLIST"
+		if [[ $? == 1 ]]; then
+			USRGROUP=1
+		fi
+	fi
+	echo $line >> $TMP_CONF
+done
+)
+
+mv -f $TMP_CONF $GITOSIS_CONF
+$GIT add $GITOSIS_CONF
+$GIT commit -m "Granted $PERM permission on '$REPO' to: $USRLIST"
+$GIT push || os1error "gitosis conf failed"
+

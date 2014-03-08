@@ -1,0 +1,11 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 ]] || os1error "Usage: $0 user"
+
+USER=$1
+
+#useradd -m -s /usr/bin/git-shell $USER || os1error "cannot create user"
+#sudo -u $USER ssh-keygen -t dsa -f $OS_USER_KEY_DIR/$USER -N '' -q || os1error "cannot create key"
+ssh-keygen -t dsa -f $OS_USER_KEY_DIR/$USER -N '' -q || os1error "cannot create key"
+#sudo -u $USER ssh-keygen -t dsa -f /home/$USER/.ssh/id_dsa -N '' -q || os1error "cannot create key"
+#sudo -u $USER cp /home/$USER/.ssh/id_dsa.pub /home/$USER/.ssh/authorized_keys || os1error "cannot create key"

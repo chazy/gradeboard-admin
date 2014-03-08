@@ -1,0 +1,17 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 || $# == 2 ]] || os1error "Usage: $0 user [0|1] (1 == delete all git repos)"
+
+USER=$1
+DELGITREPO=${2:-0}
+
+#userdel -r -f $USER || os1error "cannot remove user"
+#[[ `groups $USER 2>/dev/null` ]] && groupdel $USER || os1error "cannont remove user's primary group"
+
+rm -f "$OS_USER_KEY_DIR/$USER"
+rm -f "$OS_USER_KEY_DIR/$USER.pub"
+
+if [[ $DELGITREPO == 1 ]]; then
+	echo "Deleting git repos in: $OS_GIT_REPOPATH/$USER..."
+	rm -rf "$OS_GIT_REPOPATH/$USER" || os1error "cannot remove the git repos"
+fi

@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# rb-user-login
+# Christoffer Dall
+# Fall 2011
+#
+# Parse the class list and reviewboard.auth file and send the individual
+# user login credentials to each student.
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 ]] || os1error "Usage: $0 uni"
+
+UNI="$1"
+
+LINE=`grep "$UNI@columbia.edu" "$CLASS_LIST"`
+NAME=`echo "$LINE" | sed 's/\(.*\) (.*@columbia.edu)/\1/g'`
+PWD_LINE=`grep "^$UNI," "$RB_AUTH_FILE"`
+PASSWORD=`echo "$PWD_LINE" | cut -f 3 -d ',' -`
+
+if [[ "$PASSWORD" == '' ]]; then
+    echo "No password for user $UNI - skipping user"
+else
+    svr send-user-login "$UNI" "$PASSWORD" "$UNI@columbia.edu" "'$NAME'"
+fi

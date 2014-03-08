@@ -1,0 +1,72 @@
+#!/bin/bash
+#
+# The supplied mirror path is the path used to match the repository
+# registerd on reviewboard and is usually the actual clone path used
+# to actually clone the repository which is being reviewd. However,
+# since each student have their own repositories, then we supply a
+# fake path to make things tie together, which should be relative
+# to OS_GIT_REPOPATH as it is also used to add the origin to the
+# repo, so post-review know which diff should be submitted.
+#
+# The submitter is the user in reviewboard that the review should appear
+# to come from. This is usually a UNI.
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 3 || $# == 4 || $# == 5 ]] || os1error "Usage: $0 path/to/repo mirror_path submit_as [force] [summary]"
+
+RPATH="$1"
+MPATH="$2"
+SUBMIT_AS="$3"
+FORCE=${4:-0}
+SUMMARY=${5:-Homework submission}
+
+RBLOG=rb.log
+RB_ID_FILE=rb.id
+RBID=0
+UPDATE_ARG=""
+
+pushd "$OS_GIT_REPOPATH/$RPATH" > /dev/null
+
+if [[ -f .reviewed && $FORCE == 0 ]]; then
+	echo "$RPATH already reviewed"
+	exit 0
+elif [[ -f .reviewed && -f $RB_ID_FILE ]]; then
+	RBID=`cat $RB_ID_FILE`
+	echo "Updating review #$RBID"
+	UPDATE_ARG=" -r $RBID"
+else
+	echo "Creating new review for $RPATH"
+fi
+
+sudo -H -u $GITOSIS_USER $GIT remote add origin $OS_GIT_REPOPATH/$MPATH > /dev/null 2>&1
+sudo -H -u $GITOSIS_USER $GIT fetch origin || os1error "cannot fetch remote repo"
+sudo -H -u $GITOSIS_USER $GIT branch --set-upstream master origin/master > /dev/null
+
+post-review --username="$RB_ADMIN_USER" --password="$RB_ADMIN_PASS" \
+	--submit-as="$SUBMIT_AS" \
+	--repository-url="$MPATH" \
+	--summary="$SUMMARY" \
+	--server="$RB_SERVER_URL" \
+	--target-groups="$RB_TA_GROUP" \
+	-p $UPDATE_ARG | tee -a $RBLOG
+
+POST_RESULT=$?
+
+# Check if there even was a diff to commit
+tail -n 1 rb.log | grep "There don't seem to be any diffs" - > /dev/null
+ANYDIFF_RESULT=$?
+
+if [[ $POST_RESULT == 0 && $ANYDIFF_RESULT != 0 ]]; then
+	touch .reviewed
+	id=`cat $RBLOG | grep 'Review request #[0-9]\+ posted.' | tail -1 | sed 's/.*#\([0-9]*\) posted./\1/'`
+	id=${id//[[:space:]]}
+	if [[ "$id" != "" ]]; then
+		echo "$id" > $RB_ID_FILE
+	fi
+else
+	os1error "Could not create review for $RPATH"
+fi
+
+echo -e "\n----------------------------------\n"
+
+popd > /dev/null

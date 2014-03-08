@@ -1,0 +1,24 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 3 ]] || os1error "Usage: $0 src/repo/path kernel/repo/path relative/path/in/src/repo"
+
+SRC="$1"
+KPATH="$OS_GIT_REPOPATH/$2.git"
+RPATH=$3
+REPO="$OS_GIT_REPOPATH/$SRC.git"
+
+#[[ -f $SRC/hooks/update ]] || os1error "no hook-update file"
+TMPDIR="/tmp/${SRC}___"
+
+sudo -H -u $GITOSIS_USER $GIT clone "$REPO" "$TMPDIR" || os1error "cannot do a clone on $REPO"
+sudo -H -u $GITOSIS_USER mkdir -p "$TMPDIR/$RPATH"
+pushd $KPATH
+sudo -H -u $GITOSIS_USER $GIT archive --format=tar --prefix=$RPATH/ HEAD | (cd "$TMPDIR" && tar xf -)
+popd
+
+pushd $TMPDIR
+sudo -H -u $GITOSIS_USER $GIT add $RPATH
+sudo -H -u $GITOSIS_USER $GIT commit -a -m "Initial import of $2 source"
+sudo -H -u $GITOSIS_USER $GIT push
+popd
+rm -rf "$TMPDIR"

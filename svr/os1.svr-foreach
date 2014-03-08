@@ -1,0 +1,37 @@
+#!/bin/bash
+error() {
+	echo $*
+	exit 1
+}
+
+[[ $# == 0 || $# == 1 ]] && error "Usage: $0 [-f] homework cmd [args]"
+
+FORCE=0
+QUIET=0
+if [[ "$1" == "-f" ]]; then
+	FORCE=1
+	shift
+fi
+if [[ "$1" == "-q" ]]; then
+	QUIET=1
+	shift
+fi
+
+HMWRK=$1
+shift
+
+SPACE=0
+
+cat /root/$HMWRK/repos | (
+while read repo; do
+	[[ $QUIET == 0 && $SPACE == 1 ]] && echo
+	cd $repo || error "Cannot chdir to $repo"
+	[[ $QUIET == 0 ]] && echo "Running $@ in `pwd`"
+	if [[ $FORCE == 1 ]]; then
+		"$@"
+	else
+		"$@" || error "command failed"
+	fi
+	SPACE=1
+done
+)

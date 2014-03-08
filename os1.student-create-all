@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+# os1.student-create-all
+# Christoffer Dall
+# Fall 2011
+#
+# Call os1.student-create for all users in os1.gen-user-list
+#
+
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 0 || $# == 1 ]] || os1error "Usage $0 [email]"
+
+EMAIL=$1
+
+for user in `./os1.gen-user-list`
+do
+	./os1.student-create $user $EMAIL
+done

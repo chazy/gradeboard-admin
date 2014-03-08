@@ -1,0 +1,38 @@
+#!/bin/bash
+#
+# group-foreach.sh
+# Jeremy C. Andrus
+# Fall 2010
+#
+# Run a command for each team in the gitosis config file.
+# Use '\$TEAM' to reference the team name in your command
+#
+# e.g. This command clones the 'hmwk/hmwk1-group' repo on the server
+#      to all groups found in the gitosis config file under the
+#      repo path 'TEAM/hmwk1' where 'TEAM' is replaced with the
+#      actual team name:
+#
+#      ./os1.group-foreach ./os1.repo-clone hmwk/hmwk1-grp \$TEAM/hmwk1 \$TEAM
+#
+
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# -ge 1 ]] || os1error "Usage $0 cmd args..."
+
+CMD="$1"
+shift
+
+RE_team_start="^.*\[[ ]*group[ ][ ]*(team[0-9][0-9]*)[ ]*\]"
+
+cat $GITOSIS_CONF | (
+while  read line; do
+	if [[ $line =~ $RE_team_start ]]; then
+		team=${BASH_REMATCH[1]}
+		# Open a new file and redirect it to STDOUT
+		exec 8<&1
+		exec 8>&1
+		F=$(TEAM=$team; eval $CMD $* 2>&8 >&8) # redirect all output here into the newly opened file descriptor
+		exec 8<&-
+	fi
+done
+)
+

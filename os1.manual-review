@@ -1,0 +1,16 @@
+#!/bin/bash
+#
+# manual-review
+# Christoffer Dall
+# Fall 2011
+#
+# Used to create a manual review.
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 4 ]] || os1error "Usage: $0 rel/git/path.git rel/src/path.git submitter force
+RPATH="$1"
+MPATH="$2"
+SUBMIT_AS="$3"
+FORCE="$4"
+
+svr review $1 $2 $3 $4

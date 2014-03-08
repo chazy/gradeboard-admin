@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# rb-team-login
+# Christoffer Dall
+# Fall 2011
+#
+# Parse the team list and reviewboard.auth file and send the team
+# user login credentials to each team.
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 ]] || os1error "Usage: $0 team"
+
+TEAM=$1
+
+
+echo "'$TEAM'"
+LINE=`grep "^$TEAM " "$TEAM_LIST"`
+USERS=`echo "$LINE" | cut -f 2 -d ' ' -`
+EMAILS=`echo "$USERS" | sed 's/,/@columbia.edu,/g' | sed 's/$/@columbia.edu/'`
+NAME=`echo "$TEAM" | sed 's/^t/T/' | sed -E 's/Team([0-9]+)/Team \1/'`
+
+# Build members string
+MEMBERS=""
+for user in `echo "$USERS" | sed 's/,/ /g'`; do
+    MNAME=`grep "$user@columbia.edu" "$CLASS_LIST" | sed 's/\(.*\) (.*@columbia.edu)/\1/g'`
+    MEMBERS="$MEMBERS    $MNAME ($user)\n"
+done
+
+PWD_LINE=`grep "$TEAM," "$RB_AUTH_FILE"`
+PASSWORD=`echo "$PWD_LINE" | cut -f 3 -d ',' -`
+
+if [[ "$PASSWORD" == '' ]]; then
+    echo "No password for team $TEAM - skipping user"
+else
+    echo -e "$MEMBERS" | \
+        ssh $OS_ADMIN@$OS_HOST \
+        "$OS_BINDIR/os1.svr-send-team-login $TEAM $PASSWORD '$EMAILS' '$NAME'"  \
+        || os1error "error running server command: $ACTION"
+fi

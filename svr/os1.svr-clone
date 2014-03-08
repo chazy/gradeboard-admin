@@ -1,0 +1,47 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 2 || $# == 3 ]] || os1error "Usage: $0 src/repo/path dst/repo/path [skip_existing]"
+
+SPATH=$1.git
+DPATH=$2.git
+SKIP_EXIST=${3:-0}
+SRC="$OS_GIT_REPOPATH/$SPATH"
+DST="$OS_GIT_REPOPATH/$DPATH"
+
+if [[ ! -f $SRC/hooks/update ]]; then
+	echo "WARNING - setting an arbitrary due date!"
+	DUE_DATE=`date -d "+15 days"`
+	os1.svr-hmwk-setduedate $1 "$DUE_DATE"
+fi
+
+# If the skip_existing flag is set, just exist gracefully
+if [[ -d $DST && $SKIP_EXIST != 0 ]]; then
+	exit 0
+fi
+
+sudo -H -u $GITOSIS_USER $GIT clone --bare "$SRC" "$DST" || os1error "cannot do a bare clone on $DST"
+
+touch $DST/commit.log
+
+cat >> $DST/config <<- ".."
+[receive]
+        denyNonFastforwards = true
+..
+
+ln -s "$SRC/hooks/update" "$DST/hooks/update" || os1error "cannot create update hook"
+ln -s "$OS_BINDIR/os1.hook.post-receive" "$DST/hooks/post-receive" || os1error "cannot create post-receive hook"
+
+pushd "$DST" > /dev/null
+
+# HACK fix permissions on the links I just added...
+chown -R $GITOSIS_USER.$GITOSIS_USER *
+
+# force git to share objects (blobs) between repos
+# (this saves lots of disk space!)
+# Reference: 
+#   https://git.wiki.kernel.org/index.php/GitFaq#How_to_share_objects_between_existing_repositories.3F
+#echo "$SRC/objects/" > "$DST/objects/info/alternatives"
+#sudo -H -u $GITOSIS_USER $GIT repack -a -d -l
+
+popd > /dev/null
+

@@ -1,0 +1,104 @@
+#!/bin/bash
+# repo-clone
+# Jeremy C. Andrus
+# 2010-09-08
+# 
+# This script clones a repository on the server, then adds write permission
+# to a given group of students (or just TAs if no student list present)
+# 
+# Usage: repo-clone src/repo dst/repo [user1,user2,user3,...]
+# 
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 2 || $# == 3 || $# == 4 ]] || os1error "Usage: $0 src/repo dst/repo [user1,user2,...] [0 (== no extra TA permision)"
+
+SRC=$1
+DST=$2
+USERLIST=`echo ${3:- } | sed -e 's/,/ /g'`
+TA=${4:-1}
+
+echo "----------------------------------------"
+echo "Cloning '$SRC' into '$DST'..."
+svr clone $SRC $DST 1
+
+echo "Adding permissions..."
+TMP_CONF=$GITOSIS_CONF.tmp
+rm -f $TMP_CONF
+
+RE_team_repo="^team[0-9][0-9]*.*"
+
+RE_ta_grp="^.*\[[ ]*group ${OS_TAGRPNAME}[ ]*\]"
+RE_usrgrp_start="^.*\[[ ]*group[ ][ ]*([a-z][a-z]*[0-9][0-9]*)[ ]*\]"
+RE_team_start="^.*\[[ ]*group[ ][ ]*(team[0-9][0-9]*)[ ]*\]"
+RE_writable="^[ ]*writable ="
+RE_emptyline="^[ ]*$"
+if [[ $DST =~ $RE_team_repo ]]; then
+	echo "  >>Team Mode<<"
+	RE_grp_start=$RE_team_start
+else
+	echo " >>User Mode<<"
+	RE_grp_start=$RE_usrgrp_start
+fi
+
+IN_GROUP=0
+SHOULD_TA_MOD=0
+TA_MOD_DONE=0
+
+if [[ $TA != 1 ]]; then
+	TA_MOD_DONE=1
+fi
+
+cat $GITOSIS_CONF | (
+while  read line; do
+	if [[ $IN_GROUP == 1 ]]; then
+		if [[ $line =~ $RE_writable ]]; then
+			# check to see if the current group gets access to the new repo
+			os1exists $GROUP "$USERLIST"
+			if [[ $? == 1 ]]; then
+				# make sure we don't duplicate access
+				os1find "$DST" "$line"
+				if [[ $? == 1 ]]; then
+					echo "  $GROUP already has write access to $DST."
+				else
+					echo "  Adding write permission for $GROUP..."
+					line="$line $DST"
+				fi
+			fi
+			IN_GROUP=0
+		elif [[ $line =~ $RE_emptyline ]]; then
+			# there was no 'writable = ' line in this group: add a new one
+			os1exists $GROUP "$USERLIST"
+			if [[ $? == 1 ]]; then
+				echo "  Adding write permission for $GROUP..."
+				echo "writable = $DST" >> $TMP_CONF
+			fi
+			IN_GROUP=0
+		fi
+	elif [[ $TA_MOD_DONE == 0 && $SHOULD_TA_MOD == 1 ]]; then
+		if [[ $line =~ $RE_writable ]]; then
+			echo "  TA: setting write permission for all TAs"
+			line="$line $DST"
+			TA_MOD_DONE==1
+		elif [[ $line =~ $RE_emptyline ]]; then
+			echo "  TA: setting write permission for all TAs"
+			echo "writable = $DST" >> $TMP_CONF
+			TA_MOD_DONE=1
+		fi
+	elif [[ $TA_MOD_DONE == 0 && "$line" =~ $RE_ta_grp ]]; then
+		SHOULD_TA_MOD=1
+	elif [[ "$line" =~ $RE_grp_start ]]; then
+		IN_GROUP=1
+		GROUP=${BASH_REMATCH[1]}
+	fi
+	echo $line >> $TMP_CONF
+done
+)
+
+echo " >>GIT"
+
+mv -f $TMP_CONF $GITOSIS_CONF
+$GIT add $GITOSIS_CONF
+$GIT commit -m "Updating permissions on newly cloned repo '$DST'"
+$GIT push || os1error "gitosis conf failed: no one has write permission!"
+
+echo " >>END"
+

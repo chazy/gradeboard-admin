@@ -1,0 +1,14 @@
+#!/bin/bash
+#
+# gen-team-list.sh
+# Christoffer Dall
+# Fall 2011
+#
+# Generate a list of users from a flat-file named 'team_list'
+#
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+LISTFILE="$TEAM_LIST"
+
+LIST=`cat $LISTFILE | sed 's/^\([^ ]*\) .*/\1/' | xargs echo`
+echo $LIST

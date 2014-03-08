@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+# Jeremy C. Andrus
+# Fall 2010
+#
+# Synchronize all files in 'svr' to the proper location on
+# the remote git server
+#
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+
+SVRFILES=`ls -1 ${_FP}/svr/*`
+
+echo "Copying svr-scripts..."
+echo "----------------------"
+scp $SVRFILES $OS_ADMIN@$OS_HOST:$OS_BINDIR
+echo -e
+
+echo "Copying config"
+echo "--------------"
+scp "$_FP/os1.cfg" $OS_ADMIN@$OS_HOST:$OS_BINDIR
+echo -e
+
+echo "Copying reviewboard authorization file"
+echo "--------------------------------------"
+scp "$_FP/$RB_AUTH_FILE" $OS_ADMIN@$OS_HOST:$OS_RB_HOME/.$RB_AUTH_FILE
+

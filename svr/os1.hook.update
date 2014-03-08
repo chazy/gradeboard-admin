@@ -1,0 +1,48 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 1 ]] || os1error "Usage: $0 end_time"
+
+END_DATE_STR=$1
+
+START=`date +%s`
+END=`date -d "$END_DATE_STR" +%s`
+LEFT=$(($END - $START))
+ALLOW=0 # that's true
+
+if [[ $LEFT -lt 3600 ]]; then
+	WARNING=1
+	echo
+	echo "--- WARNING ---"
+fi
+
+#if [[ $LEFT -lt 0 ]]; then
+if [[ $LEFT < 0 ]]; then
+	echo "${USER}, you are commiting after the deadline!"
+
+	os1exists ${OS_TAGRPNAME} "${GIT_GROUPS}"
+	if [[ $? < 1 ]]; then # this user is _not_ a part of the TA group
+		ALLOW=1 # that's false: no more pushing!
+	fi
+else
+	DAY=$(($LEFT/(3600*24)))
+	LEFT=$(($LEFT - $DAY*24*3600))
+	HOUR=$(($LEFT/(3600)))
+	LEFT=$(($LEFT - $HOUR*3600))
+	MIN=$(($LEFT/(60)))
+	LEFT=$(($LEFT - $MIN*60))
+	
+	echo
+	echo -n "${USER}, the deadline is in "
+	if [[ $DAY != 0 ]]; then echo -n "$DAY days, "; fi
+	if [[ $HOUR != 0 ]]; then echo -n "$HOUR hours, "; fi
+	if [[ $MIN != 0 ]]; then echo -n "$MIN minutes, "; fi
+	echo "$LEFT seconds"
+	echo
+fi
+
+if [[ $WARNING == 1 ]]; then
+	echo "--- WARNING ---"
+	echo
+fi
+
+exit $ALLOW

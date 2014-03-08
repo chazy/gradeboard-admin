@@ -1,0 +1,15 @@
+#!/bin/bash
+. `dirname $(which $(test -L $0 && readlink $0 || echo $0))`/os1.cfg
+[[ $# == 2 ]] || os1error "Usage: $0 repo/path due_date"
+
+REPO="$OS_GIT_REPOPATH/$1.git"
+DUE_DATE=$2
+
+UPDATE_SCRIPT="$REPO/hooks/update"
+
+echo "#!/bin/bash" > $UPDATE_SCRIPT
+echo "${_FP}/os1.hook.update \"$DUE_DATE\"" >> $UPDATE_SCRIPT
+
+chown $GITOSIS_USER.$GITOSIS_USER $UPDATE_SCRIPT
+chmod 750 $UPDATE_SCRIPT
+
